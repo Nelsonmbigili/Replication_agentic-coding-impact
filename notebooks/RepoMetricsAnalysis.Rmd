@@ -1,0 +1,119 @@
+---
+title: "Repository Metrics Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 6, fig.height = 4)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(stringr)
+library(purrr)
+library(Cairo)
+library(lubridate)
+
+theme_set(theme_minimal() +
+    theme(
+        panel.grid = element_blank(),
+        axis.line = element_line(color = "black"),
+        axis.ticks = element_line(color = "black")
+    ))
+```
+
+## Data Loading
+
+```{r}
+repos_df <- read_csv("../data/repos_with_details.csv")
+
+reference_date <- as.Date("2025-11-30")
+
+repos_df <- repos_df %>%
+    mutate(
+        repo_created = ymd_hms(repo_created),
+        adoption_yearmonth = agent_adopt_month,
+        repo_age_days = as.integer(difftime(reference_date, repo_created, units = "days"))
+    ) %>%
+    filter(!is.na(agent_adopt_month)) %>%
+    filter(adoption_yearmonth >= "2024-05", adoption_yearmonth < "2025-08")
+
+agent_first <- read_lines("../data/agent_first.txt") %>%
+    str_trim() %>%
+    .[. != ""]
+
+ide_first <- read_lines("../data/ide_first.txt") %>%
+    str_trim() %>%
+    .[. != ""]
+
+repos_agent <- repos_df %>% filter(name %in% agent_first)
+repos_ide <- repos_df %>% filter(name %in% ide_first)
+```
+
+## Descriptive Statistics Table
+
+```{r}
+calc_stats <- function(x) {
+    c(
+        mean = mean(x, na.rm = TRUE),
+        std_dev = sd(x, na.rm = TRUE),
+        min = min(x, na.rm = TRUE),
+        median = median(x, na.rm = TRUE),
+        max = max(x, na.rm = TRUE)
+    )
+}
+
+metrics <- c(
+    "repo_age_days", "stars", "forks", "num_prs", "num_agent_prs"
+)
+
+stats_list_agent <- repos_agent %>%
+    select(all_of(metrics)) %>%
+    map(calc_stats)
+
+stats_list_ide <- repos_ide %>%
+    select(all_of(metrics)) %>%
+    map(calc_stats)
+
+stats_df <- data.frame(
+  Metric = c(
+    "Age (days)",
+    "Stars",
+    "Forks",
+    "Pull Requests",
+    "Agentic Pull Requests"
+  ),
+  Mean_Agent = sapply(stats_list_agent, function(x) round(x["mean"], 1)),
+  Mean_IDE = sapply(stats_list_ide, function(x) round(x["mean"], 1)),
+  Min_Agent = sapply(stats_list_agent, function(x) round(x["min"], 1)),
+  Min_IDE = sapply(stats_list_ide, function(x) round(x["min"], 1)),
+  Median_Agent = sapply(stats_list_agent, function(x) round(x["median"], 1)),
+  Median_IDE = sapply(stats_list_ide, function(x) round(x["median"], 1)),
+  Max_Agent = sapply(stats_list_agent, function(x) round(x["max"], 1)),
+  Max_IDE = sapply(stats_list_ide, function(x) round(x["max"], 1))
+)
+
+cat("\n\n=== LATEX TABLE OUTPUT ===\n\n")
+cat(" & AF & IF & AF & IF & AF & IF & AF & IF \\\\\n")
+cat("\\midrule\n")
+
+for (i in seq_len(nrow(stats_df))) {
+  row_str <- sprintf("%-22s", stats_df$Metric[i])
+  
+  for (j in 2:ncol(stats_df)) {
+    val <- stats_df[i, j]
+    if (val == floor(val)) {
+      row_str <- paste0(row_str, " & ", as.integer(val))
+    } else {
+      row_str <- paste0(row_str, " & ", val)
+    }
+  }
+  
+  cat(row_str, " \\\\\n", sep="")
+}
+
+cat("\\bottomrule\n")
+cat("\n=== END LATEX TABLE ===\n\n")
+```

@@ -1,0 +1,91 @@
+---
+title: "Agent Adoption Time Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 5, fig.height = 3)
+knitr::opts_chunk$set(dev = 'CairoPNG', dpi = 150)
+options(bitmapType = 'cairo')
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(stringr)
+library(Cairo)
+
+theme_set(theme_minimal() +
+          theme(panel.grid = element_blank(),
+                axis.line = element_line(color = "black"),
+                axis.ticks = element_line(color = "black")))
+```
+
+## Data Loading
+
+```{r}
+repos_detailed_df <- read_csv("../data/repos_with_details.csv")
+
+metrics_df <- repos_detailed_df %>%
+    filter(!is.na(agent_adopt_month)) %>%
+    mutate(adoption_yearmonth = agent_adopt_month) %>%
+    filter(adoption_yearmonth >= "2024-05", adoption_yearmonth < "2025-08")
+```
+
+## Distribution of Agent Adoption Time
+
+```{r, fig.width=7, fig.height=4, out.width="100%"}
+agent_first <- read_lines("../data/agent_first.txt") %>%
+    str_trim() %>%
+    .[. != ""]
+
+ide_first <- read_lines("../data/ide_first.txt") %>%
+    str_trim() %>%
+    .[. != ""]
+
+metrics_agent <- metrics_df %>%
+    filter(name %in% agent_first)
+
+metrics_ide <- metrics_df %>%
+    filter(name %in% ide_first)
+
+adoption_counts_agent <- metrics_agent %>%
+    count(adoption_yearmonth) %>%
+    arrange(adoption_yearmonth)
+
+adoption_counts_ide <- metrics_ide %>%
+    count(adoption_yearmonth) %>%
+    arrange(adoption_yearmonth)
+
+adoption_combined <- bind_rows(
+    adoption_counts_agent %>% mutate(category = "Repositories without prior AI traces (AF)"),
+    adoption_counts_ide %>% mutate(category = "Repositories with prior AI traces (IF)")
+) %>%
+    complete(adoption_yearmonth, category, fill = list(n = 0)) %>%
+    mutate(category = factor(category, levels = c("Repositories without prior AI traces (AF)", 
+                                                   "Repositories with prior AI traces (IF)")))
+
+p_combined <- ggplot(adoption_combined, aes(x = adoption_yearmonth, y = n, fill = category)) +
+    geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+    geom_text(aes(label = n, color = category), position = position_dodge(width = 0.9), vjust = -0.3, size = 2.5) +
+    labs(x = "Year-Month", y = "Number of Repositories", fill = "") +
+    scale_fill_manual(values = c("Repositories without prior AI traces (AF)" = "#0072B2", 
+                                  "Repositories with prior AI traces (IF)" = "#D55E00"),
+                      breaks = c("Repositories without prior AI traces (AF)", "Repositories with prior AI traces (IF)")) +
+    scale_color_manual(values = c("Repositories without prior AI traces (AF)" = "#0072B2", 
+                                   "Repositories with prior AI traces (IF)" = "#D55E00"),
+                       guide = "none") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.25))) +
+    coord_cartesian(ylim = c(0, 200), clip = "off") +
+    theme(axis.text = element_text(size = 9),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          axis.title = element_text(size = 10),
+          legend.position = "bottom",
+          legend.text = element_text(size = 10),
+          plot.margin = margin(t = 35, r = 5, b = 40, l = 5, unit = "pt"))
+
+print(p_combined)
+ggsave("../plots/agent_adoption_time_combined.pdf", plot = p_combined, width = 7, height = 3.5, device = CairoPDF, family = "DejaVu Sans")
+```

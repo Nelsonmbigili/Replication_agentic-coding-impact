@@ -1,0 +1,313 @@
+---
+title: "Control Group Analysis: Repositories without prior AI traces (AF) vs Repositories with prior AI traces (IF)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(dev = 'CairoPNG', dpi = 150)
+options(bitmapType = 'cairo')
+utils::globalVariables(c(
+    "estimate", "is_significant", "conf.low", "conf.high",
+    "term", "setting", "outcome", "outcome_label", "time"
+))
+```
+
+## Loading Required Packages
+
+```{r load_packages}
+library(didimputation)
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(knitr)
+library(kableExtra)
+library(Cairo)
+```
+
+## Loading and Preparing the Data
+
+```{r load_data}
+panel_data <- fread("../data/panel_event_monthly.csv")
+
+# Convert variables to DiD required format
+# Keep original repo names (strings) for mapping
+panel_data$repo_name_str <- panel_data$repo_name
+panel_data$repo_name <- as.numeric(factor(panel_data$repo_name))
+
+panel_data$time <- as.numeric(gsub("-", "", panel_data$time))
+panel_data$event[!is.na(panel_data$event)] <- as.numeric(
+    gsub("-", "", panel_data$event[!is.na(panel_data$event)]))
+panel_data$event[is.na(panel_data$event)] <- 0
+# panel_data <- panel_data[panel_data$event < 202401 # never treated
+#         | (panel_data$event > 202407 & panel_data$event <= 202503)]
+panel_data$event <- as.integer(panel_data$event)
+panel_data$quality_warnings <- panel_data$code_smells + panel_data$vulnerabilities + panel_data$bugs
+
+# Create delta metrics before log transformation
+# First, sort data and compute changes from previous time point
+panel_data <- panel_data %>%
+    arrange(repo_name, time) %>%
+    group_by(repo_name) %>%
+    mutate(
+        # Compute changes from previous time point
+        delta_code_smells = code_smells - lag(code_smells, default = 0),
+        delta_vulnerabilities = vulnerabilities - lag(vulnerabilities, default = 0),
+        delta_bugs = bugs - lag(bugs, default = 0),
+
+        # Compute delta per line added (avoid division by zero)
+        code_smells_per_line = delta_code_smells / (lines_added + 1),
+        vulnerabilities_per_line = delta_vulnerabilities / (lines_added + 1),
+        bugs_per_line = delta_bugs / (lines_added + 1)
+    ) %>%
+    ungroup()
+
+# Log transform skewed variables
+panel_data$commits <- log(panel_data$commits + 1)
+panel_data$lines_added <- log(panel_data$lines_added + 1)
+panel_data$code_smells <- log(panel_data$code_smells + 1)
+panel_data$vulnerabilities <- log(panel_data$vulnerabilities + 1)
+panel_data$bugs <- log(panel_data$bugs + 1)
+panel_data$cognitive_complexity <- log(panel_data$cognitive_complexity + 1)
+panel_data$duplicated_lines_density <- log(panel_data$duplicated_lines_density + 1)
+panel_data$comment_lines_density <- log(panel_data$comment_lines_density + 1)
+panel_data$age <- log(panel_data$age + 1)
+panel_data$contributors <- log(panel_data$contributors + 1)
+panel_data$stars <- log(panel_data$stars + 1)
+panel_data$issues <- log(panel_data$issues + 1)
+panel_data$issue_comments <- log(panel_data$issue_comments + 1)
+panel_data$quality_warnings <- log(panel_data$quality_warnings + 1)
+
+# Handle delta metrics transformation (can be negative, so use signed log)
+# Use signed log transformation: sign(x) * log(|x| + 1)
+panel_data$code_smells_per_line <- sign(panel_data$code_smells_per_line) * log(abs(panel_data$code_smells_per_line) + 1)
+panel_data$vulnerabilities_per_line <- sign(panel_data$vulnerabilities_per_line) * log(abs(panel_data$vulnerabilities_per_line) + 1)
+panel_data$bugs_per_line <- sign(panel_data$bugs_per_line) * log(abs(panel_data$bugs_per_line) + 1)
+
+# Create treatment indicator and time since treatment variables
+panel_data$treated <- ifelse(panel_data$event > 0, 1, 0)
+panel_data$time_since_treatment <- ifelse(panel_data$treated == 1,
+                                         panel_data$time - panel_data$event,
+                                         NA)
+
+
+```
+
+## DiD Analysis with DiD Imputation Package
+
+```{r did_analysis}
+# List of outcome variables
+
+outcome_vars <- c(
+    "commits",
+    "lines_added",
+    "duplicated_lines_density",
+    "comment_lines_density",
+    "quality_warnings",
+    "cognitive_complexity"
+)
+outcome_names <- c(
+    "Commits",
+    "Lines Added",
+    "Duplicated Lines Density",
+    "% Comment Lines",
+    "Static Analysis Warnings",
+    "Cognitive/Code Complexity"
+)
+
+base_settings <- c(
+    "Repositories without prior AI traces (AF)",
+    "Repositories with prior AI traces (IF)"
+)
+
+build_setting_variant <- function(data, setting_label) {
+    dt <- data
+    if (setting_label == "Repositories without prior AI traces (AF)") {
+        dt <- dt[dt$matched_agent_first_or_corresponding_matched_control == TRUE | is.na(dt$matched_agent_first_or_corresponding_matched_control), ]
+    } else if (setting_label == "Repositories with prior AI traces (IF)") {
+        dt <- dt[dt$matched_ide_first_or_corresponding_matched_control == TRUE | is.na(dt$matched_ide_first_or_corresponding_matched_control), ]
+    }
+    dt
+}
+```
+
+## Aggregate Treatment Effects - Base Settings
+
+```{r aggregate_effects}
+# Function to extract static treatment effects (overall effect)
+get_static_effects <- function(outcome_var, data) {
+    # Run static DiD (no horizon/pretrends specified)
+    static_result <- did_imputation(
+        data = data,
+        yname = outcome_var,
+        gname = "event",
+        tname = "time",
+        idname = "repo_name",
+        first_stage = ~ age + ncloc + contributors + stars + issues | repo_name + time
+    )
+
+    return(static_result)
+}
+
+# Calculate static effects for each base setting
+static_results_by_setting <- list()
+for (setting in base_settings) {
+    cat("Calculating aggregate effects for:", setting, "\n")
+    data_s <- build_setting_variant(panel_data, setting)
+    static_results_by_setting[[setting]] <- list()
+    for (var in outcome_vars) {
+        static_results_by_setting[[setting]][[var]] <- get_static_effects(var, data_s)
+    }
+}
+
+# Create comparison dataframe
+static_comparison <- data.frame()
+for (setting in base_settings) {
+    static_df <- data.frame(
+        Setting = setting,
+        Outcome = names(static_results_by_setting[[setting]]),
+        Estimate = sapply(static_results_by_setting[[setting]], function(x) x$estimate[x$term == "treat"]),
+        SE = sapply(static_results_by_setting[[setting]], function(x) x$std.error[x$term == "treat"]),
+        CI_Lower = sapply(static_results_by_setting[[setting]], function(x) x$conf.low[x$term == "treat"]),
+        CI_Upper = sapply(static_results_by_setting[[setting]], function(x) x$conf.high[x$term == "treat"])
+    )
+    static_comparison <- rbind(static_comparison, static_df)
+}
+
+# Calculate p-values from estimate and SE
+static_comparison$p_value <- 2 * pnorm(-abs(static_comparison$Estimate / static_comparison$SE))
+
+# Add significance stars
+static_comparison$Sig <- ifelse(static_comparison$p_value < 0.001, "***",
+                         ifelse(static_comparison$p_value < 0.01, "**",
+                         ifelse(static_comparison$p_value < 0.05, "*",
+                         ifelse(static_comparison$p_value < 0.1, ".", ""))))
+
+# Calculate percent change: 100*(e^β - 1)
+static_comparison$Percent_Change <- 100 * (exp(static_comparison$Estimate) - 1)
+
+# Clean outcome names for display
+static_comparison$Outcome <- gsub("log\\((.+) \\+ 1\\)", "\\1", static_comparison$Outcome)
+static_comparison$Outcome <- gsub("_", " ", static_comparison$Outcome)
+static_comparison$Outcome <- tools::toTitleCase(static_comparison$Outcome)
+
+# Display static effects
+knitr::kable(static_comparison,
+    digits = 3,
+    col.names = c("Setting", "Outcome", "Estimate", "SE", "CI Lower", "CI Upper", "p-value", "Sig", "% Change"),
+    caption = "Static Treatment Effects Comparison: AF vs IF Control Groups (*** p<0.001, ** p<0.01, * p<0.05, . p<0.1)",
+    row.names = FALSE
+) %>%
+    kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = FALSE
+    ) %>%
+    kableExtra::pack_rows(base_settings[1], 1, length(outcome_vars)) %>%
+    kableExtra::pack_rows(base_settings[2], length(outcome_vars) + 1, 2 * length(outcome_vars))
+```
+
+## Dynamic Treatment Effects (Event Study)
+
+```{r dynamic_effects_6outcomes, fig.width=18, fig.height=4}
+settings <- base_settings
+
+collect_dynamic_results <- function(outcomes, settings) {
+    results <- list()
+    for (s in settings) {
+        data_s <- build_setting_variant(panel_data, s)
+        for (y in outcomes) {
+            dyn <- didimputation::did_imputation(
+                data = data_s,
+                yname = y,
+                gname = "event",
+                tname = "time",
+                idname = "repo_name",
+                first_stage = ~ age + ncloc + contributors + stars + issues | repo_name + time,
+                horizon = -6:6,
+                pretrends = -6:-2
+            )
+            dyn$setting <- s
+            dyn$outcome <- y
+            results[[length(results) + 1]] <- dyn
+        }
+    }
+    dplyr::bind_rows(results)
+}
+
+dyn_all <- collect_dynamic_results(outcome_vars, settings)
+
+count_setting_stats <- function(setting_name) {
+    data_s <- build_setting_variant(panel_data, setting_name)
+    n_treat <- length(unique(data_s$repo_name[data_s$event > 0]))
+    n_control <- length(unique(data_s$repo_name[data_s$event == 0]))
+    n_obs <- nrow(data_s)
+    list(treat = n_treat, control = n_control, obs = n_obs)
+}
+setting_stats <- lapply(settings, count_setting_stats)
+settings_with_counts <- paste0(settings, " (n=", sapply(setting_stats, `[[`, "treat"),
+                               "+", sapply(setting_stats, `[[`, "control"),
+                               ", obs=", sapply(setting_stats, `[[`, "obs"), ")")
+names(settings_with_counts) <- settings
+
+plot_dyn <- dyn_all[dyn_all$term != "treat", ]
+plot_dyn$time <- as.numeric(plot_dyn$term)
+plot_dyn <- plot_dyn[plot_dyn$time >= -6 & plot_dyn$time <= 6, ]
+
+label_map <- setNames(outcome_names, outcome_vars)
+plot_dyn$outcome_label <- label_map[plot_dyn$outcome]
+plot_dyn <- plot_dyn[!is.na(plot_dyn$outcome_label), ]
+plot_dyn$outcome_label <- factor(plot_dyn$outcome_label, levels = outcome_names)
+plot_dyn$setting_label <- settings_with_counts[plot_dyn$setting]
+plot_dyn$setting_label <- factor(plot_dyn$setting_label, levels = settings_with_counts, ordered = TRUE)
+plot_dyn$setting <- factor(plot_dyn$setting, levels = settings, ordered = TRUE)
+plot_dyn$significant <- (plot_dyn$conf.low > 0) | (plot_dyn$conf.high < 0)
+
+plot_dyn$linetype_sig <- ifelse(plot_dyn$significant, "solid", "dotted")
+pos <- position_dodge(width = 0.5)
+
+key_outcomes <- c("Commits", "Lines Added", "% Comment Lines", "Duplicated Lines Density", 
+                  "Static Analysis Warnings", "Cognitive/Code Complexity")
+plot_dyn_key <- plot_dyn[plot_dyn$outcome_label %in% key_outcomes, ]
+plot_dyn_key$outcome_label <- factor(plot_dyn_key$outcome_label, levels = key_outcomes)
+
+dynamic_plot_6_onerow <- ggplot(plot_dyn_key, aes(x = time, y = estimate, color = setting_label)) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high, linetype = linetype_sig),
+                  position = pos, width = 0.4) +
+    geom_point(aes(shape = significant, fill = after_scale(ifelse(significant, color, NA))),
+               position = pos, size = 1.5) +
+    scale_shape_manual(values = c("TRUE" = 19, "FALSE" = 21), guide = "none") +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    geom_vline(xintercept = -0.5, linetype = "dashed") +
+    scale_x_continuous(breaks = -6:6) +
+    coord_cartesian(xlim = c(-6.5, 6.5)) +
+    scale_linetype_identity() +
+    scale_color_manual(values = setNames(c(
+        "#0072B2",  # Repositories without prior AI traces (AF) - Blue
+        "#D55E00"   # Repositories with prior AI traces (IF) - Orange
+    ), settings_with_counts), drop = FALSE) +
+    labs(
+        x = "Months Relative to Agent Adoption",
+        y = "Treatment Effect",
+        color = "Setting",
+        caption = "Filled dots: p < 0.05 (significant), Hollow dots: p ≥ 0.05 (non-significant)"
+    ) +
+    guides(color = guide_legend(nrow = 1)) +
+    theme_minimal() +
+    theme(
+        legend.position = "bottom",
+        plot.caption = element_text(hjust = 0.5, size = 12, margin = margin(t = 3)),
+        legend.margin = margin(b = 3),
+        legend.box.margin = margin(t = -5),
+        legend.text = element_text(size = 12),
+        strip.text = element_text(size = 12, face = "bold"),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 12)
+    ) +
+    facet_wrap(~ outcome_label, scales = "free_y", nrow = 1)
+
+print(dynamic_plot_6_onerow)
+
+ggsave("../plots/dynamic_effects.pdf",
+  plot = dynamic_plot_6_onerow, width = 18, height = 4,
+  device = CairoPDF, family = "DejaVu Sans")
+```
