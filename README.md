@@ -1,3 +1,4 @@
+
 ## 1. Project Title and Overview
 
 **Namu Go**  (New York University Abu Dhabi) and **Nelson Mbigili**  (New York University Abu Dhabi) 
@@ -26,77 +27,183 @@
     All scripts, datasets, and evaluation artifacts needed to reproduce the replication results are provided in this repository.
 ---
 
+##  2. Repository Structure 
 
-### 2. Repository Structure
 
-Document your repository structure clearly. Organize your repository using the following standard structure:
+This repository has the following structure
 
-```
-README                    # Documentation for your repository
-datasets/                 # Subset of data you used (if any). If you used the whole dataset, include instructions on how to download it
-replication_scripts/      # Scripts used in your replication:
-                          #   - If you used scripts as-is: document which scripts you ran
-                          #   - If you modified scripts: include the modified scripts
-                          #   - If you created new scripts: include all new scripts
-outputs/                  # Your generated results only
-logs/                     # Console output, errors, screenshots
-notes/                    # Optional if you have any notes you took during reproduction (E.g., where you noted discrepencies etc)
+```text
+- README.md:             Main project documentation containing the paper summary, replication scope, and high-level results of the study.
+- INSTRUCTS.md:          Technical guide for environment setup and script execution, README from replication package of original paper.
+- data/:                 Input directory containing the raw CSVs for the study, including repos_with_details.csv, panel_event_monthly.csv, and matching.csv.
+- notebooks/:            The workspace with R Markdown analysis logic for DiD estimation adoption time analysis, and repository metric calculations.
+- replication_results/:  Output directory storing generated results by this replication study, including data_inspection_report.md and intermediate replication CSVs.
+- plots/:                Directory containing the replicated graphs and tables from RQs.
+- scripts/:              Scrips used to download the datasets and randomly select sampled dataset for inspection.
 ```
 
-**For each folder and file, provide a brief description of what it contains.**
+## 3. Setup Instructions and Replication Guide
+This guide covers all four replication tasks:
 
-### 3. Setup Instructions
+1. **Data Inspection** — Reviewing the dataset files, Report included in replication_results
+2. **AI Adoption Date Validation** — Report included in replication_results
+3. **Replication of Research Questions** — Running the R notebooks to reproduce all results of RQs
+4. **Data Re-Collection** — Re-fetching live GitHub data for 2 repositories and comparing against the original
 
-- **Prerequisites**: Required software, tools, and versions
-  - OS requirements
-  - Programming language versions (Python, R, etc.)
-  - Required packages/libraries and versions
-  - Any other dependencies
-- **Installation Steps**: Step-by-step instructions to set up the environment
-  - How to install dependencies
-  - How to configure paths or settings
-  - Any environment variables needed
+---
+
+### Prerequisites
+
+- **Operating System:** Linux or macOS
+- **Programming Languages:** R (for RQ replication), Python 3.9+ (for data re-collection)
+- **Tools:** `git`, `pip`, `venv`, RStudio (recommended) or `rmarkdown::render()`
+- **R Version:** 4.3.3
+- **GitHub Personal Access Token:** Required only for Task 3 (data re-collection). Generate one at
+  GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic).
+  Minimum scope: `public_repo`
+
+> All required R packages are listed in Task 3. All required Python packages are listed in Task 4.
+
+---
+
+### Task 1: Data Inspection
+
+The full dataset inspection report is saved at:
+
+```text
+replication_Results/data_inspection_report.md
+```
+
+---
+
+### Task 2: AI Adoption Date Validation
+
+The full review and inspection report is saved at:
+
+```text
+replication_Results/adoption_date_validation_report.md
+```
+Script to randomly select the files can be found at `scripts/random_select.py` and the generated csv with selected repos can be found at `replication_results/selected_3.csv`
+
+---
+
+### Task 3: Replication of Research Questions (R Notebooks)
+
+### Prerequisites
+
+Install the following **before** running any notebook:
+
+**1. System dependencies (macOS — run in Terminal):**
+```bash
+brew install --cask xquartz
+brew install cairo
+brew install harfbuzz fribidi
+```
+> Restart your Mac after installing XQuartz before proceeding.
+
+**2. R 4.3.3** — download from [https://cran.r-project.org](https://cran.r-project.org)
+
+**3. RStudio Desktop** — download from [https://posit.co/download/rstudio-desktop](https://posit.co/download/rstudio-desktop)
+
+**4. R packages (run in RStudio Console):**
+```r
+install.packages(c(
+    "didimputation",   # Borusyak et al. DiD imputation estimator
+    "ggplot2",         # Plotting
+    "dplyr",           # Data manipulation
+    "data.table",      # Fast data operations
+    "readr",           # Reading CSV files
+    "tidyr",           # Data tidying
+    "stringr",         # String manipulation
+    "purrr",           # Functional programming
+    "lubridate",       # Date/time manipulation
+    "knitr",           # Dynamic report generation
+    "kableExtra",      # Enhanced table formatting
+    "Cairo",           # High-quality PDF graphics device
+    "systemfonts",     # Font support
+    "textshaping"      # Required by kableExtra
+))
+```
+
+### Replication Steps
+
+Open the `notebooks/` folder in RStudio and knit the notebooks **in this order**:
+
+1. **`notebooks/RepoMetricsAnalysis.Rmd`**
+   Generates descriptive statistics (mean, min, median, max) for both Agent-First and IDE-First groups.
+   - **Output:** LaTeX table printed to the RStudio console
+
+2. **`notebooks/AdoptionTimeAnalysis.Rmd`**
+   Analyzes when repositories adopted coding agents relative to the study window.
+   - **Output:** `plots/agent_adoption_time_combined.pdf`
+
+3. **`notebooks/DiffinDiff.Rmd`**
+   Main difference-in-differences analysis estimating static (ATT) and dynamic (event-study) treatment effects across six outcomes for both AF and IF groups.
+   - **Output:** Static treatment effects table (rendered in HTML)
+   - **Output:** `plots/dynamic_effects.pdf`
+
+Each notebook reads data from `./data/` and saves plots to `./plots/` relative to the notebook location. All outputs are also embedded in the knitted HTML file produced alongside each `.Rmd`.
+
+---
+
+### Task 4: Data Re-Collection (From the CursorStudy replication package)
+
+This task randomly selects 2 repositories from `scripts/CursorStudy/data/repos.csv` via a seed specified, re-fetches their current metrics from the GitHub API, and prints a field-by-field comparison against the original values captured in the paper (March 2025). The console log with differences is included in `scripts/CursorStudy/recolection_log.txt`. The script `cripts/CursorStudy/scripts/recollect_two_repos.py` is adopted from the original [CursorStudy](https://zenodo.org/records/18368662) and only slighly modified to also hihlight the differenced bweteen the two versions of metadatas
+
+### Prerequisites
+
+- Python 3.9+
+- A GitHub Personal Access Token (see above)
+
+| Package | Version | Purpose |
+|---|---|---|
+| PyGithub | >= 2.3.0 | GitHub API client |
+| pandas | >= 2.0.0 | Data loading and CSV output |
+| python-dotenv | >= 1.0.0 | Loading the `.env` token file |
+
+### Replication Steps
+
+1. **From within the Script Repository**
+```bash
+cd CursorStudy
+```
+
+2. **Set Up Environment**
+   Create a virtual environment and install the required dependencies:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install PyGithub pandas python-dotenv
+```
+
+3. **Configure Your GitHub Token**
+   Copy the example env file and add your token:
+```bash
+cp .env.example .env
+```
+   Open `.env` and set:
+```text
+GITHUB_TOKEN=ghp_yourPersonalAccessTokenHere
+```
+
+4. **Run the Re-Collection Script**
+```bash
+python scripts/recollect_two_repos.py
+```
+
+#### What the Script Does
+
+1. Loads all 8,621 repositories from `data/repos.csv`
+2. Randomly selects 2 repositories using `random_state=42` (reproducible)
+3. Queries the GitHub API for current values of all 13 fields
+4. Saves the new data to `data/repos_recollected.csv`
+5. Prints a field-by-field diff to stdout showing what changed and by how much, this is also saved in `scripts/CursorStudy/recolection_log.txt`
+
+---
 
 ### 4. GenAI Usage
 
-**GenAI Usage**: Briefly document any use of generative AI tools (e.g., ChatGPT, GitHub Copilot, Cursor) during the replication process. Include:
+- **Tool Used:** [Claude Code](https://claude.ai/new)
 
-  - Which tools were used
-  - How they were used (e.g., understanding scripts, exploring datasets, understanding data fields, debugging)
-  - Brief description of the assistance provided
-
-
-## Grading Criteria for README
-
-Your README will be evaluated based on the following aspects (Total: 40 points):
-
-### 1. Completeness (10 points)
-- [ ] All required sections are present
-- [ ] Each section contains sufficient detail
-- [ ] Repository structure is fully documented
-- [ ] All files and folders are explained
-- [ ] GenAI usage is documented (if any AI tools were used)
-
-### 2. Clarity and Organization (5 points)
-- [ ] Information is well-organized and easy to follow
-- [ ] Instructions are clear and unambiguous
-- [ ] Professional writing and formatting
-- [ ] Proper use of markdown formatting (headers, code blocks, lists)
-
-### 3. Setup and Reproducibility (10 points)
-- [ ] Setup instructions are complete and accurate, i.e., we were able to rerun the scripts following your instructions and obtain the results you reported
-
-
-## Best Practices
-
-1. **Be Specific**: Include exact versions, paths, and commands rather than vague descriptions
-2. **Keep It Updated**: Ensure the README reflects the current state of your repository
-3. **Test Your Instructions**: Have someone else (or yourself in a fresh environment) follow the setup instructions
-4. **Document AI Usage**: If you used any GenAI tools, be transparent about how they were used (e.g., understanding scripts, exploring datasets, understanding data fields)
-
-
-## Acknowledgement
-
-This guideline was developed with the assistance of [Cursor](https://www.cursor.com/), an AI-powered code editor. This tool was used to:
-
-- Draft and refine this documentation iteratively
+- **How It Was Used:**
+  - Assisted in installing and seting up the requirements and Assisted in understanding the data flow in replication steps.
