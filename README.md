@@ -1,30 +1,31 @@
-<p style="border:1px; border-style:solid; border-color:black; padding: 1em;">
-CS-UH 3260 Software Analytics<br/>
-Replication Study Guidelines<br/>
-Dr. Sarah Nadi, NYUAD
-</p>
+## 1. Project Title and Overview
 
-# Replication Repository README Template -- CS-UH-3260 Software Analytics
+**Namu Go**  (New York University Abu Dhabi) and **Nelson Mbigili**  (New York University Abu Dhabi) 
 
 
-## Overview
 
-This repo provides a template and and guidelines for creating a README file for your replication study repository. The README serves as the primary documentation for your repository and helps evaluators understand your work, navigate your repository structure, and reproduce your replication. You can create a repo based on this template and modify the README and content as needed.
-
-
-## README Structure Template
-
-Your repository README should include the following sections:
-
-### 1. Project Title and Overview
-
-- **Paper Title**: [Full title of the replicated paper]
-- **Authors**: [Original paper authors]
-- **Replication Team**: [Your team members' names]
+- **Paper Title**: Replication of "*AI IDEs or Autonomous Agents? Measuring the Impact of Coding Agents on Software Development*"
+- **Authors**: Shyam Agarwal, Hao He, Bogdan Vasilescu (Carnegie Mellon University)
+- **Replication Team**: Namu Go and Nelson Mbigili
 - **Course**: CS-UH 3260 Software Analytics, NYUAD
 - **Brief Description**: 
-  - 2-3 sentences summarizing what the original paper is about
-  - 2-3 sentences summarizing what this replication study does
+  - **Original Paper Summary**:
+
+  The original paper performs a longitudinal causal study to measure the impact of **autonomous coding agents** (e.g., Claude Code, Devin, OpenHands) on software development velocity and quality. By analyzing repositories from the **AIDev dataset**, the authors use a staggered difference-in-differences design to compare projects that adopted agents as their first AI tool versus those with prior AI IDE experience. The study reveals that while agents provide a significant initial boost in development velocity for "AI-new" projects, they consistently lead to increased **technical debt**, with static-analysis warnings and code complexity rising by approximately 18% and 39%, respectively, across all settings.
+
+- **Replication Scope Summary**:
+
+  This replication study evaluates the data integrity and core causal claims of the original research through the following tasks:
+    1. **Task 1: Data Inspection**:
+        * **Dataset Provenance**: Involves a comprehensive audit of the replication package to categorize files and determine which data points were sourced from the original **AIDev dataset** versus those generated or augmented by the authors.
+        * **Adoption Credibility**: Performs a manual validation of agent adoption timelines by randomly selecting 3 repositories from `repos_with_details.csv` (where `num_agent_prs > 0`) and inspecting their Pull Request history around the recorded `first_agent_adopted_at` timestamp to verify accuracy.
+    2. **Task 2: Full Paper Replication**:
+        * **Result Reproduction**: Executes provided scripts to replicate the findings for all Research Questions (RQs), ensuring that the statistical outputs and causal estimates match the reported figures.
+        * **Data Pipeline Validation**: Tests the robustness of the data collection process by randomly picking 2 repositories and re-running the [data collection scripts( from another study)](https://zenodo.org/records/18368662). This includes regenerating `repos_with_details.csv` for these specific repos and analyzing any discrepancies between the original and newly fetched live data.
+
+    All scripts, datasets, and evaluation artifacts needed to reproduce the replication results are provided in this repository.
+---
+
 
 ### 2. Repository Structure
 
