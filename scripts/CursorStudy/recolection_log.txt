@@ -1,0 +1,104 @@
+2026-05-05 17:14:55,915 [INFO] Loaded 8621 repos from data/repos.csv
+2026-05-05 17:14:55,919 [INFO] Randomly selected repos (seed=42):
+2026-05-05 17:14:55,920 [INFO]   - DA0-DA0/dao-dao-ui
+2026-05-05 17:14:55,920 [INFO]   - PostHog/posthog-foss
+2026-05-05 17:14:56,926 [INFO] GitHub rate limit: 4992/5000 remaining
+2026-05-05 17:14:56,927 [INFO] Fetching data for DA0-DA0/dao-dao-ui ...
+2026-05-05 17:15:01,919 [INFO] Fetching data for PostHog/posthog-foss ...
+2026-05-05 17:15:04,404 [WARNING] pulls error for PostHog/posthog-foss: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/pulls/pulls#list-pull-requests", "status": "404"}
+2026-05-05 17:15:06,695 [INFO] Saved recollected data to data/repos_recollected.csv
+
+
+*** FIELD-BY-FIELD COMPARISON (Original vs. Recollected) ***
+Original data collected: ~March 2025 (per repo_updated timestamps)
+New data collected      : today (May 2025)
+
+============================================================
+Repo: DA0-DA0/dao-dao-ui
+============================================================
+
+  CHANGED FIELDS:
+    repo_stars:
+      Original : 32
+      New      : 33
+      Delta    : +1
+    repo_forks:
+      Original : 25
+      New      : 31
+      Delta    : +6
+    repo_updated:
+      Original : 2025-03-27T19:15:05+00:00
+      New      : 2026-04-29T21:21:04+00:00
+    repo_issues:
+      Original : 1832.0
+      New      : 1
+      Delta    : -1831
+    repo_pulls:
+      Original : 1208.0
+      New      : 1218.0
+      Delta    : +10
+    repo_commits:
+      Original : 2989.0
+      New      : 3289
+      Delta    : +300
+    repo_contributors:
+      Original : 30.0
+      New      : 33
+      Delta    : +3
+    repo_size:
+      Original : 48422.0
+      New      : 52637
+      Delta    : +4215
+    repo_languages:
+      Original : TypeScript: 21936745; JavaScript: 70427; CSS: 20184; Dockerfile: 1367
+      New      : TypeScript: 26987646; JavaScript: 72281; CSS: 20184; Dockerfile: 1407; Shell: 462
+
+  Unchanged fields: repo_created, repo_description, repo_primary_language
+
+============================================================
+Repo: PostHog/posthog-foss
+============================================================
+
+  CHANGED FIELDS:
+    repo_stars:
+      Original : 345
+      New      : 490
+      Delta    : +145
+    repo_forks:
+      Original : 66
+      New      : 97
+      Delta    : +31
+    repo_updated:
+      Original : 2025-03-31T14:51:34+00:00
+      New      : 2026-05-05T13:14:07+00:00
+    repo_issues:
+      Original : 14.0
+      New      : 0
+      Delta    : -14
+    repo_pulls:
+      Original : 14.0
+      New      : nan
+      Delta    : +nan
+    repo_commits:
+      Original : 22660.0
+      New      : 41818
+      Delta    : +19158
+    repo_contributors:
+      Original : 276.0
+      New      : 400
+      Delta    : +124
+    repo_size:
+      Original : 1418726.0
+      New      : 3264320
+      Delta    : +1845594
+    repo_languages:
+      Original : TypeScript: 20146133; Python: 20019214; Rust: 1867097; C++: 686533; JavaScript: 451915; SCSS: 324234; HTML: 144866; Shell: 88299; Go: 39846; MDX: 33574; ANTLR: 23533; Dockerfile: 17237; PLpgSQL: 9521; EJS: 4831; Smarty: 1517; CSS: 520; C: 285
+      New      : Python: 69126204; TypeScript: 54203062; Rust: 9404707; JavaScript: 752681; Go: 656056; HTML: 458506; SCSS: 444721; Shell: 268837; CSS: 157272; C++: 144043; HCL: 75828; ANTLR: 38251; Perl: 35898; MDX: 32115; Dockerfile: 20703; Jinja: 16116; PLpgSQL: 9521; EJS: 4869; Makefile: 3687; CMake: 3397; Smarty: 3222; Ruby: 1261; C: 1070
+    repo_primary_language:
+      Original : TypeScript
+      New      : Python
+
+  Unchanged fields: repo_created, repo_description
+
+
+Done. See data/repos_recollected.csv for the full new dataset.
